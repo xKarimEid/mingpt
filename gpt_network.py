@@ -104,7 +104,7 @@ class GPT(nn.Module):
         self.context_size = config.context_size
         
     
-    def forward(self, idx):
+    def forward(self, idx, targets=None):
         
         B, T = idx.size()
         assert T <= self.context_size
@@ -119,7 +119,14 @@ class GPT(nn.Module):
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x)
 
-        return logits
+        loss = None
+        if targets is not None:
+
+            logits = logits.view(B*T, 50257)
+            targets = targets.view(B*T)
+            loss = F.cross_entropy(logits, targets)
+
+        return logits, loss
     
     @classmethod
     def from_pretrained(cls, model_type):
