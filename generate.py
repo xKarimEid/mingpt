@@ -15,6 +15,8 @@ def generate_tokens(model):
     device = "cpu"
     if torch.cuda.is_available():
         device = 'cuda'
+    
+    print(f"using device: {device}")
 
     model.to(device)
 
@@ -26,6 +28,7 @@ def generate_tokens(model):
 
     idx = torch.tensor(tokens, dtype=torch.long)
     idx = idx.unsqueeze(0).repeat(num_samples, 1)
+    idx = idx.to(device)
 
     torch.manual_seed(42)
 
