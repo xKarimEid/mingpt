@@ -18,7 +18,7 @@ def generate_tokens(model):
     
     print(f"using device: {device}")
 
-    model.to(device)
+    #model.to(device)
 
 
     enc = tiktoken.get_encoding('gpt2')
@@ -34,7 +34,7 @@ def generate_tokens(model):
 
     while idx.size(1) < 30:
         with torch.no_grad():
-            logits = model(idx)
+            logits, loss = model(idx)
             logits = logits[:, -1, :]
             probs = F.softmax(logits, dim=-1)
             topk_probs, topk_idx = torch.topk(probs, 50, dim=-1)
