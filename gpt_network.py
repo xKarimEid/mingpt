@@ -18,6 +18,7 @@ class MultiHeadAttention(nn.Module):
         self.c_attn = nn.Linear(config.n_embed, config.n_embed*3)
         # output projections
         self.c_proj = nn.Linear(config.n_embed, config.n_embed)
+        self.INIT_SCALE = 1
         self.register_buffer('bias', 
             torch.tril(torch.ones(config.context_size, config.context_size))
                         .view(1, 1, config.context_size, config.context_size))
@@ -56,6 +57,7 @@ class MLP(nn.Module):
         self.c_fc = nn.Linear(config.n_embed, 4*config.n_embed)
         self.gelu = nn.GELU()
         self.c_proj = nn.Linear(config.n_embed*4, config.n_embed)
+        self.INIT_SCALE = 1
     
     def forward(self, x):
         x = self.c_fc(x)
@@ -93,6 +95,8 @@ class GPT(nn.Module):
 
     def __init__(self, config):
         super().__init__()
+        self.config = config
+
         self.transformer = nn.ModuleDict(dict(
             wte = nn.Embedding(config.vocab_size, config.n_embed), 
             wpe = nn.Embedding(config.context_size, config.n_embed),
@@ -101,8 +105,25 @@ class GPT(nn.Module):
             
         ))
         self.lm_head = nn.Linear(config.n_embed, config.vocab_size, bias = False)
+        # Weight sharing parameter
+        self.transformer.wte.weight = self.lm_head.weight
+
         self.context_size = config.context_size
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):    
         
+        
+        if isinstance(module, nn.Linear):
+            std = 0.02
+            if hasattr(module, 'INIT_SCALE'):
+                std *= (2*self.config.n_layers)**-0.5
+            torch.nn.init.normal_(module.weight, mean=0, std=std)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0, std=0.02)
     
     def forward(self, idx, targets=None):
         

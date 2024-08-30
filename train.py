@@ -1,20 +1,28 @@
 
-import os
+import torch 
+
+from prepare_data import DataLoader
 from gpt_network import GPT, GPTConfig
-from generate import generate_tokens
-import tiktoken
 
 
-data_path = os.path.join(os.path.dirname(__file__), 'input.txt')
-with open(data_path, 'r') as f:
-    data = f.readlines()
+B, T = 4, 6
 
-enc = tiktoken.get_encoding('gpt2')
+train_data = DataLoader(B, T)
 
+device = 'cpu'
+if torch.cuda.is_available():
+    device = 'cuda'
 
-# Implement loss calculation
+model = GPT(GPTConfig())
+model.to(device)
 
-# Implement validation
+optim = torch.optim.AdamW(model.parameters(), lr = 3e-4 )
+for i in range(50):
+    xb, yb = train_data.next_batch()
+    xb, yb = xb.to(device), yb.to(device)
 
-# Setup train loop
-
+    logits, loss = model(xb, yb)
+    optim.zero_grad()
+    loss.backward()
+    optim.step()
+    print(f"step {i} with loss: {loss.item()}")
