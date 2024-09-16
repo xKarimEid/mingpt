@@ -18,7 +18,6 @@ class DataLoader:
         print(f"Number of epochs: {len(self.data)//(self.B*self.T)}")
     
     def next_batch(self):
-
         buffer = self.data[self.current_start: 
                            1+ self.current_start + (self.B*self.T)]
 

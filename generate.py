@@ -9,17 +9,13 @@ import torch.nn.functional as F
 
 
 def generate_tokens(model):
-    
     model.eval()
 
     device = "cpu"
     if torch.cuda.is_available():
         device = 'cuda'
-    
     print(f"using device: {device}")
-
-    #model.to(device)
-
+    model.to(device)
 
     enc = tiktoken.get_encoding('gpt2')
     tokens = enc.encode("Hello, I'm a language model,")
