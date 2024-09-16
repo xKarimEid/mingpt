@@ -19,10 +19,10 @@ class MultiHeadAttention(nn.Module):
         # output projections
         self.c_proj = nn.Linear(config.n_embed, config.n_embed)
         self.INIT_SCALE = 1
-        self.register_buffer('bias', 
-            torch.tril(torch.ones(config.context_size, config.context_size))
-                        .view(1, 1, config.context_size, config.context_size))
-        
+        #self.register_buffer('bias', 
+        #    torch.tril(torch.ones(config.context_size, config.context_size))
+        #                .view(1, 1, config.context_size, config.context_size))
+
         self.n_heads = config.n_heads 
         self.head_size = config.head_size
         self.n_embed = config.n_embed
@@ -37,18 +37,18 @@ class MultiHeadAttention(nn.Module):
         q = q.view(B, T, self.n_heads, self.head_size).transpose(1, 2)
         v = v.view(B, T, self.n_heads, self.head_size).transpose(1, 2)
 
-        wei = k @ q.transpose(-2, -1) * (1/math.sqrt(k.size(-1)))
-        wei = wei.masked_fill(self.bias[:, :, :T, :T] == 0, float('-inf'))
-        wei = F.softmax(wei, dim=-1)
+        #wei = k @ q.transpose(-2, -1) * (1/math.sqrt(k.size(-1)))
+        #wei = wei.masked_fill(self.bias[:, :, :T, :T] == 0, float('-inf'))
+        #wei = F.softmax(wei, dim=-1)
+        #out = wei @ v # (B, nh, T, T) (B, nh, T, hs) - (B, nh, T, hs) 
 
-        out = wei @ v # (B, nh, T, T) (B, nh, T, hs) - (B, nh, T, hs) 
+        out = F.scaled_dot_product_attention(k, q, v, is_causal=True)
         
-        #out = out.view(B, T, config.n_embed)
         out = out.transpose(1, 2).contiguous().view(B, T, C)
+
         out = self.c_proj(out)
 
         return out 
-
 
 class MLP(nn.Module):
 
@@ -64,7 +64,6 @@ class MLP(nn.Module):
         x = self.gelu(x)
         x = self.c_proj(x)
         return x
-        
 
 class Block(nn.Module):
 
@@ -96,6 +95,7 @@ class GPT(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
+        self.context_size = config.context_size
 
         self.transformer = nn.ModuleDict(dict(
             wte = nn.Embedding(config.vocab_size, config.n_embed), 
@@ -105,16 +105,13 @@ class GPT(nn.Module):
             
         ))
         self.lm_head = nn.Linear(config.n_embed, config.vocab_size, bias = False)
+        
         # Weight sharing parameter
         self.transformer.wte.weight = self.lm_head.weight
-
-        self.context_size = config.context_size
 
         self.apply(self._init_weights)
 
     def _init_weights(self, module):    
-        
-        
         if isinstance(module, nn.Linear):
             std = 0.02
             if hasattr(module, 'INIT_SCALE'):
@@ -126,12 +123,14 @@ class GPT(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0, std=0.02)
     
     def forward(self, idx, targets=None):
-        
         B, T = idx.size()
         assert T <= self.context_size
 
+        # Create positions for position embeddings
+        pos = torch.arange(T, dtype=torch.long, device = idx.device)
+        pe = self.transformer.wpe(pos)
         te = self.transformer.wte(idx) 
-        pe = self.transformer.wpe(torch.arange(T, dtype=torch.long, device = idx.device))
+        # Encode positions and tokens together
         x = te + pe
         
         for block in self.transformer.h:
@@ -142,7 +141,6 @@ class GPT(nn.Module):
 
         loss = None
         if targets is not None:
-
             logits = logits.view(B*T, 50257)
             targets = targets.view(B*T)
             loss = F.cross_entropy(logits, targets)
@@ -199,5 +197,3 @@ class GPT(nn.Module):
                     sd[k].copy_(sd_hf[k])
 
         return model
-
-
