@@ -8,7 +8,7 @@ torch.manual_seed(13424)
 if torch.cuda.is_available:
     torch.cuda.manual_seed(13424)
 
-B, T = 8, 1024
+B, T = 8, 32
 
 train_loader = DataLoader(B, T)
 
@@ -26,9 +26,10 @@ for i in range(50):
     t0 = time.time()
     xb, yb = train_loader.next_batch()
     xb, yb = xb.to(device), yb.to(device)
-    with torch.autocast(device_type=device, dtype=torch.float16):
+
+    with torch.autocast(device_type=device, dtype=torch.bfloat16):
         logits, loss = model(xb, yb)
-    
+
     optim.zero_grad()
     loss.backward()
     optim.step()
