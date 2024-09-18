@@ -15,7 +15,7 @@ class DataLoader:
         self.current_start = 0
         self.data = self._read_encode_data()
         print(f"Number of tokens: {len(self.data)}")
-        print(f"Number of epochs: {len(self.data)//(self.B*self.T)}")
+        print(f"1 epoch: {len(self.data)//(self.B*self.T)}")
     
     def next_batch(self):
         buffer = self.data[self.current_start: 
