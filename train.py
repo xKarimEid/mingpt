@@ -4,13 +4,28 @@ import math
 
 from prepare_data import DataLoader
 from gpt_network import GPT, GPTConfig
-
+from torch.distributed import init_process_group, destroy_process_group
+import os
 
 torch.manual_seed(13424)
 if torch.cuda.is_available:
     torch.cuda.manual_seed(13424)
 
-B, T = 8, 32
+ddp = int(os.environ.get('RANK', -1)) != -1 # is this a ddp run?
+if ddp:
+    # use of DDP atm demands CUDA, we set the device appropriately according to rank
+    assert torch.cuda.is_available(), "for now i think we need CUDA for DDP"
+    init_process_group(backend='nccl')
+    ddp_rank = int(os.environ['RANK'])
+    ddp_local_rank = int(os.environ['LOCAL_RANK'])
+    ddp_world_size = int(os.environ['WORLD_SIZE'])
+    device = f'cuda:{ddp_local_rank}'
+    torch.cuda.set_device(device)
+    master_process = ddp_rank == 0 # this process will do logging, checkpointing etc.
+    print(f"I am GPU {ddp_rank}")
+    print("Bye")
+
+import sys; sys.exit(0)
 
 total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
 B = 16 # micro batch size
