@@ -25,6 +25,7 @@ if ddp:
     print(f"I am GPU {ddp_rank}")
     print("Bye")
 
+print("finished!")
 import sys; sys.exit(0)
 
 total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
