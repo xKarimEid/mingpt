@@ -4,7 +4,9 @@ import math
 
 from prepare_data import DataLoader
 from gpt_network import GPT, GPTConfig
+import torch.distributed as dist
 from torch.distributed import init_process_group, destroy_process_group
+from torch.nn.parallel import DistributedDataParallel as DDP
 import os
 
 torch.manual_seed(13424)
@@ -22,11 +24,9 @@ if ddp:
     device = f'cuda:{ddp_local_rank}'
     torch.cuda.set_device(device)
     master_process = ddp_rank == 0 # this process will do logging, checkpointing etc.
-    print(f"I am GPU {ddp_rank}")
+    print(f"I am GPU with ddp_rank: {ddp_rank}, ddp_local_rank: {ddp_local_rank}, ddp_world_size: {ddp_world_size}")
     print("Bye")
 
-print("finished!")
-import sys; sys.exit(0)
 
 total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
 B = 16 # micro batch size
@@ -35,7 +35,7 @@ assert total_batch_size % (B * T) == 0, "make sure total_batch_size is divisible
 grad_accum_steps = total_batch_size // (B * T)
 print(f"total desired batch size: {total_batch_size}")
 print(f"=> calculated gradient accumulation steps: {grad_accum_steps}")
-train_loader = DataLoader(B=B, T=T)
+train_loader = DataLoader(B=B, T=T, process_rank=ddp_local_rank, num_processes=ddp_world_size)
 
 torch.set_float32_matmul_precision('high')
 
@@ -46,6 +46,10 @@ if torch.cuda.is_available():
 model = GPT(GPTConfig())
 model.to(device)
 model = torch.compile(model)
+
+if ddp:
+    model = DDP(model, device_ids=[ddp_local_rank])
+raw_model = model.module if ddp else model
 
 max_lr = 6e-4
 min_lr = 0.1 * max_lr
@@ -65,7 +69,7 @@ def get_lr(it):
 
 #optim = torch.optim.AdamW(model.parameters(), lr = 3e-4, betas=(0.9, 0.95), eps=1e-8)
 # optimize!
-optim = model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device=device)
+optim = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device=device)
 
 for i in range(max_steps):
     t0 = time.time()
@@ -80,7 +84,11 @@ for i in range(max_steps):
 
         loss = loss/grad_accum_steps
         loss_accum += loss.detach()
+        if ddp:
+            model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1)
         loss.backward()
+    if ddp:
+        dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
     # If norm is increasing, then training is destabilizing
     # Clipping the gradient by the norm
     norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -98,6 +106,9 @@ for i in range(max_steps):
     t1 = time.time()
     dt = (t1-t0)*1000
 
-    tokens_per_sec = train_loader.B * train_loader.T * grad_accum_steps / (t1-t0)
+    tokens_per_sec = train_loader.B * train_loader.T * grad_accum_steps * ddp_world_size / (t1-t0)
+    if master_process:
+        print(f"step {i} with loss: {loss_accum.item():.4f}, lr: {lr:.4e}, norm: {norm:.4f}, dt: {dt:.2f}ms, tok/sec: {tokens_per_sec:.2f}")
 
-    print(f"step {i} with loss: {loss_accum.item():.4f}, lr: {lr:.4e}, norm: {norm:.4f}, dt: {dt:.2f}ms, tok/sec: {tokens_per_sec:.2f}")
+if ddp:
+    destroy_process_group()

@@ -9,10 +9,13 @@ import tiktoken
 
 
 class DataLoader:
-    def __init__(self, B, T):
+    def __init__(self, B, T, process_rank, num_processes):
         self.B = B
         self.T = T
-        self.current_start = 0
+        self.process_rank = process_rank
+        self.num_processes  = num_processes
+        self.current_start = self.B * self.T * self.process_rank
+
         self.data = self._read_encode_data()
         print(f"Number of tokens: {len(self.data)}")
         print(f"1 epoch: {len(self.data)//(self.B*self.T)}")
@@ -25,10 +28,10 @@ class DataLoader:
         yb = buffer[1:].view(self.B, self.T)
         
         # Updating current_start to new position
-        self.current_start += self.B*self.T
+        self.current_start += self.B * self.T * self.num_processes
         # Resetting if going over epoch
-        if self.current_start + self.B*self.T + 1 > len(self.data):
-            self.current_start = 0
+        if self.current_start + self.B*self.T* self.num_processes + 1 > len(self.data):
+            self.current_start = self.B * self.T * self.process_rank
         return xb, yb
 
     def _download_data(self):
