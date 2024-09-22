@@ -39,10 +39,6 @@ train_loader = DataLoader(B=B, T=T, process_rank=ddp_local_rank, num_processes=d
 
 torch.set_float32_matmul_precision('high')
 
-device = 'cpu'
-if torch.cuda.is_available():
-    device = 'cuda'
-
 model = GPT(GPTConfig())
 model.to(device)
 model = torch.compile(model)

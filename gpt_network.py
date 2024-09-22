@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from dataclasses import dataclass 
-
+from config import GPTConfig
 import math
 import inspect
 
@@ -79,16 +79,6 @@ class Block(nn.Module):
         x = x + self.attn(self.ln_1(x))
         x = x + self.mlp(self.ln_2(x))
         return x
-    
-
-@dataclass
-class GPTConfig:
-    context_size: int = 1024
-    vocab_size: int = 50257
-    n_layers: int = 12
-    n_heads: int = 12
-    n_embed: int =  768
-    head_size: int = int(n_embed/n_heads)
 
 
 class GPT(nn.Module):
