@@ -1,16 +1,16 @@
 
-import os 
+
 import math
 from config import TrainConf
-from torch.distributed import init_process_group, destroy_process_group
-import torch 
+from prepare_data import DataLoader
 
-
-class GPUTrain:
-    def __init__(self, model):
+class Trainer:
+    """Trains a model using """
+    def __init__(self, model, train_conf = TrainConf()):
         self.model = model
-        self.config = TrainConf()
-        self.optim = model.module.configure_optimizers(self.config.weight_decay, 
+        self.dataloader = DataLoader()
+        self.config = train_conf
+        self.optim = model.configure_optimizers(self.config.weight_decay, 
                                                    self.config.learning_rate)
 
     def _get_lr(self, it):
@@ -25,21 +25,19 @@ class GPUTrain:
         return self.config.min_lr + coeff * (self.config.max_lr - self.config.min_lr)
     
     def train_model(self):
-        for i in range(self.config.max_steps):
-            loss_accum = 0.0
+        
+        for step in range(self.config.max_steps):
+            # Get the next batch
+            xb, yb = self.dataloader.next_batch()
+            lr = self._get_lr(step)
             self.optim.zero_grad()
 
+            loss_accum = 0.0
+            
+            logits, loss = self.model(xb, yb)
+            
+            loss.backward()
 
+            self.optim.step()
 
-class DDPTrain:
-    # use of DDP atm demands CUDA, we set the device appropriately according to rank
-    assert torch.cuda.is_available(), "for now i think we need CUDA for DDP"
-    init_process_group(backend='nccl')
-    ddp_rank = int(os.environ['RANK'])
-    ddp_local_rank = int(os.environ['LOCAL_RANK'])
-    ddp_world_size = int(os.environ['WORLD_SIZE'])
-    device = f'cuda:{ddp_local_rank}'
-    torch.cuda.set_device(device)
-    master_process = ddp_rank == 0 # this process will do logging, checkpointing etc.
-    print(f"I am GPU with ddp_rank: {ddp_rank}, ddp_local_rank: {ddp_local_rank}, ddp_world_size: {ddp_world_size}")
-    print("Bye")
+            print(f"loss: {loss.item}, lr: {lr}")

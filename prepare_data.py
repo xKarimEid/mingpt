@@ -6,19 +6,20 @@ import os
 import requests
 import torch
 import tiktoken
+from config import TrainConf
 
 
 class DataLoader:
-    def __init__(self, B, T, process_rank, num_processes):
-        self.B = B
-        self.T = T
-        self.process_rank = process_rank
-        self.num_processes  = num_processes
+    def __init__(self, conf=TrainConf()):
+        self.B = conf.B
+        self.T = conf.T
+        self.process_rank = conf.process_rank
+        self.num_processes  = conf.num_processes
         self.current_start = self.B * self.T * self.process_rank
 
         self.data = self._read_encode_data()
         print(f"Number of tokens: {len(self.data)}")
-        print(f"1 epoch: {len(self.data)//(self.B*self.T)}")
+        print(f"1 epoch: {len(self.data)//(self.B*self.T*self.num_processes)}")
     
     def next_batch(self):
         buffer = self.data[self.current_start: 

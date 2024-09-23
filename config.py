@@ -23,4 +23,8 @@ class TrainConf:
     T: int = 1024
     grad_accum_steps: int = total_batch_size // (B*T)
     
+    # For DDP
+    num_processes: int = 1
+    process_rank: int = 0
+    
     assert total_batch_size % (B*T) == 0
