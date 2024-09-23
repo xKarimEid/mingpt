@@ -29,6 +29,7 @@ class Trainer:
         for step in range(self.config.max_steps):
             # Get the next batch
             xb, yb = self.dataloader.next_batch()
+            xb, yb = xb.to('cuda'), yb.to('cuda')
             lr = self._get_lr(step)
             self.optim.zero_grad()
 
@@ -41,3 +42,4 @@ class Trainer:
             self.optim.step()
 
             print(f"loss: {loss.item}, lr: {lr}")
+
