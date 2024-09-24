@@ -11,4 +11,4 @@ model.to(device)
 
 trainer = Trainer(model)
 
-#trainer.train_model()
+trainer.train_model()
