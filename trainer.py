@@ -1,4 +1,7 @@
-
+"""
+Script for training the LLM similar to how GPT2 and GPT3 
+were trained.
+"""
 
 import math
 from config import TrainConf
@@ -36,17 +39,26 @@ class Trainer:
         
         for step in range(self.config.max_steps):
             t1 = time.time()
-            # Get the next batch
-            xb, yb = self.dataloader.next_batch()
-            xb, yb = xb.to('cuda'), yb.to('cuda')
-            
+            loss_accum = 0.0
             self.optim.zero_grad()
-            # Forward the batch using mixed precision
-            with torch.autocast(device_type='cuda', dtype=torch.bfloat16):
-                logits, loss = self.model(xb, yb)
-            
-            # Calculate the gradients
-            loss.backward()
+            # Implement gradient accumulation to achieve 0.5M batch size
+            for micro_step in range(self.config.grad_accum_steps):
+                # Get the next batch
+                xb, yb = self.dataloader.next_batch()
+                xb, yb = xb.to('cuda'), yb.to('cuda')
+
+                # Forward the batch using mixed precision
+                with torch.autocast(device_type='cuda', dtype=torch.bfloat16):
+                    logits, loss = self.model(xb, yb)
+                # Scale the loss down because we are going to 
+                # add the gradients everytime we calculate loss.backward()
+                # So the loss has to be scaled down before loss.backward() is
+                # called. 
+                loss = loss/self.config.grad_accum_steps
+                loss_accum += loss.detach()
+                # Calculate the gradients
+                loss.backward()
+
             # Calculate new learning rate
             lr = self._get_lr(step)
             # Set the new learning rate
@@ -62,7 +74,7 @@ class Trainer:
             t2 = time.time()
             dt = (t2 - t1)*1000
             # Calculate training speed
-            tokens = self.config.B * self.config.T * self.config.num_processes
+            tokens = self.config.B * self.config.T * self.config.grad_accum_steps * self.config.num_processes
             tokens_per_sec = tokens/(t2-t1)
 
-            print(f"step: {step}, loss: {loss.item():.4f}, norm: {norm}, lr: {lr:.4f}, dt: {dt:.0f}ms, tok/s: {tokens_per_sec:.0f}")
+            print(f"step: {step}, loss: {loss_accum:.4f}, norm: {norm}, lr: {lr:.4f}, dt: {dt:.0f}ms, tok/s: {tokens_per_sec:.0f}")
