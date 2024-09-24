@@ -7,7 +7,7 @@ import time
 import torch
 
 class Trainer:
-    """Trains a model using """
+    """Trains a GPT based LLM using gpt2 and gpt3 references"""
 
     def __init__(self, model, train_conf = TrainConf(), dataloader=DataLoader()):
         self.model = model
@@ -17,6 +17,8 @@ class Trainer:
                                                    self.config.learning_rate)
 
     def _get_lr(self, it):
+        """Cosine learning rate decay with a warmup"""
+
         if it < self.config.warmup_steps:
             return self.config.max_lr * (it + 1) / self.config.warmup_steps
         if it > self.config.max_steps:
@@ -28,9 +30,9 @@ class Trainer:
         return self.config.min_lr + coeff * (self.config.max_lr - self.config.min_lr)
     
     def train_model(self):
-        # Crop fp precision for matrix multiplies to use tf32 instead of fp32
+        # Crop fp precision for matrix multiplication to use tf32 instead of fp32
         # This is available on A series gpus
-        #torch.set_float32_matmul_precision('high')
+        torch.set_float32_matmul_precision('high')
         
         for step in range(self.config.max_steps):
             t1 = time.time()
@@ -38,29 +40,29 @@ class Trainer:
             xb, yb = self.dataloader.next_batch()
             xb, yb = xb.to('cuda'), yb.to('cuda')
             
-            lr = self._get_lr(step)
             self.optim.zero_grad()
-            loss_accum = 0.0
+            # Forward the batch using mixed precision
+            with torch.autocast(device_type='cuda', dtype=torch.bfloat16):
+                logits, loss = self.model(xb, yb)
             
-            logits, loss = self.model(xb, yb)
-            
+            # Calculate the gradients
             loss.backward()
-            #Clips the gradient
+            # Calculate new learning rate
+            lr = self._get_lr(step)
+            # Set the new learning rate
+            for param_group in self.optim.param_groups:
+                param_group['lr'] = lr
+
+            # Clips the gradients
             norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+            # Update parameters
             self.optim.step()
-            
+            # Synchronize and time the step            
             torch.cuda.synchronize()
-            
             t2 = time.time()
-
             dt = (t2 - t1)*1000
-
+            # Calculate training speed
             tokens = self.config.B * self.config.T * self.config.num_processes
             tokens_per_sec = tokens/(t2-t1)
 
-            print(f"step: {step}, loss: {loss.item():.4f}, 
-                  norm: {norm}, lr: {lr:.4f}, dt: {dt:.0f}ms, 
-                  tok/s: {tokens_per_sec:.0f}")
-
-            # with torch.autocast(device_type='cuda', dtype=bfloat16):
-            #    logits, loss = models(xb, yb)
+            print(f"step: {step}, loss: {loss.item():.4f}, norm: {norm}, lr: {lr:.4f}, dt: {dt:.0f}ms, tok/s: {tokens_per_sec:.0f}")
