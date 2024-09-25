@@ -16,8 +16,7 @@ class Trainer:
         self.model = model
         self.dataloader = dataloader
         self.config = train_conf
-        self.optim = model.configure_optimizers(self.config.weight_decay, 
-                                                   self.config.learning_rate)
+        self.optim = model.configure_optimizers(self.config)
 
     def _get_lr(self, it):
         """Cosine learning rate decay with a warmup"""
