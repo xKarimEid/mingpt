@@ -1,4 +1,12 @@
+"""
+Configuration settings for training on multi GPUs
+"""
+
+import os
 from dataclasses import dataclass
+from torch.distributed import init_process_group
+import torch 
+
 
 @dataclass
 class GPTConfig:
@@ -22,9 +30,32 @@ class TrainConf:
     B: int = 16
     T: int = 1024
     grad_accum_steps: int = total_batch_size // (B*T)
+    device: str = 'cuda'
+
+    assert torch.cuda.is_available() == True
+    assert total_batch_size % (B*T) == 0 , "total_batch_size has to be divisible by B*T"
     
-    # For DDP
-    num_processes: int = 1
-    process_rank: int = 0
-    
-    assert total_batch_size % (B*T) == 0
+    # DDP Configuration settings
+    ddp: bool = int(os.environ.get('RANK', -1)) != -1
+    ddp_rank: int = 0
+    ddp_local_rank: int = 0
+    ddp_world_size: int = 1
+    master_process: bool = True
+
+    def init_ddp(self):
+        """Initialize DDP settings if DDP is enabled"""
+
+        if self.ddp:
+            print("Initializing DDP settings")
+            # Sets up communication between the GPUs 
+            # and initializes the environment
+            init_process_group(backend='nccl')
+            self.ddp_rank = int(os.environ['RANK'])
+            # Local to all gpus on same node
+            self.ddp_local_rank = int(os.environ['LOCAL_RANK'])
+            self.ddp_world_size = int(os.environ['WORLD_SIZE'])
+            self.device = f'cuda:{self.ddp_local_rank}'
+            torch.cuda.set_device(self.device)
+
+            # Master process is used for admin tasks
+            self.master_process = self.ddp_rank == 0

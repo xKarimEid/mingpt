@@ -6,10 +6,10 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from dataclasses import dataclass 
 from config import GPTConfig
 import math
 import inspect
+
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, config):
