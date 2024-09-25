@@ -132,7 +132,7 @@ class GPT(nn.Module):
 
         loss = None
         if targets is not None:
-            logits = logits.view(B*T, 50257)
+            logits = logits.view(B*T, self.config.vocab_size)
             targets = targets.view(B*T)
             loss = F.cross_entropy(logits, targets)
 
