@@ -9,7 +9,6 @@ import time
 import torch
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
-from torch.distributed import destroy_process_group
 
 
 class Trainer:
@@ -62,6 +61,8 @@ class Trainer:
         ddp = self.train_conf.ddp
         device = self.train_conf.device
 
+        # Set fp to tf32 instead of fp32 for faster
+        # matrix multiplication
         torch.set_float32_matmul_precision('high')
         
         for step in range(max_steps):
@@ -93,10 +94,9 @@ class Trainer:
                 loss.backward()
             
             if ddp:
-                pass
                 # If DDP run, we want to see the average loss across
                 # All the gpus, 
-                #dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
+                dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
 
 
             # Calculate new learning rate
@@ -118,10 +118,5 @@ class Trainer:
             tokens = B * T * grad_accum_steps * ddp_world_size
             tokens_per_sec = tokens/(t2-t1)
 
-            print(f"step: {step}, loss: {loss_accum:.4f}, norm: {norm:.4f}, lr: {lr:.4f}, dt: {dt:.0f}ms, tok/s: {tokens_per_sec:.0f}")
-            print(f"Destroying gpu: {device}")
-            
-            if ddp:
-                destroy_process_group()
-            
-            import sys; sys.exit(0)
+            if self.train_conf.master_process:
+                print(f"step: {step}, loss: {loss_accum:.4f}, norm: {norm:.4f}, lr: {lr:.4f}, dt: {dt:.0f}ms, tok/s: {tokens_per_sec:.0f}")
