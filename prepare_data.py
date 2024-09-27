@@ -6,21 +6,23 @@ import os
 import requests
 import torch
 import tiktoken
-from config import TrainConf
 
 
 class DataLoader:
-    def __init__(self, conf=TrainConf()):
-        self.B = conf.B
-        self.T = conf.T
-        self.process_rank = conf.process_rank
-        self.num_processes  = conf.num_processes
-        self.current_start = self.B * self.T * self.process_rank
+    def __init__(self, train_conf):
+        self.B = train_conf.B
+        self.T = train_conf.T
+        self.ddp_rank = train_conf.ddp_rank
+        self.ddp_world_size  = train_conf.ddp_world_size
+        self.current_start = self.B * self.T * self.ddp_rank
 
         self.data = self._read_encode_data()
-        print(f"Number of tokens: {len(self.data)}")
-        print(f"1 epoch: {len(self.data)//(self.B*self.T*self.num_processes)}")
-    
+
+        if train_conf.master_process:
+            print(f"I am gpu: {train_conf.ddp_rank}")
+            print(f"Number of tokens: {len(self.data)}")
+            print(f"1 epoch: {len(self.data)//(self.B*self.T*self.ddp_world_size)}")
+
     def next_batch(self):
         buffer = self.data[self.current_start: 
                            1+ self.current_start + (self.B*self.T)]
@@ -29,10 +31,11 @@ class DataLoader:
         yb = buffer[1:].view(self.B, self.T)
         
         # Updating current_start to new position
-        self.current_start += self.B * self.T * self.num_processes
+        self.current_start += self.B * self.T * self.ddp_world_size
+
         # Resetting if going over epoch
-        if self.current_start + self.B*self.T* self.num_processes + 1 > len(self.data):
-            self.current_start = self.B * self.T * self.process_rank
+        if self.current_start + self.B*self.T* self.ddp_world_size + 1 > len(self.data):
+            self.current_start = self.B * self.T * self.ddp_rank
         return xb, yb
 
     def _download_data(self):

@@ -10,18 +10,20 @@ import torch
 torch.manual_seed(1337)
 torch.cuda.manual_seed(1337)
 
-# Init model conf object
-gpt_conf = GPTConfig()
+# Init model conf and train conf object
+
+model_conf = GPTConfig()
+train_conf = TrainConf()
+# Init DDP run if available
+train_conf.init_ddp()
+
 # Init model using prev conf
-model = GPT(gpt_conf)
+model = GPT(model_conf)
 # Move model to device
-model.to(gpt_conf.device)
+model.to(train_conf.device)
 # Compile model for faster run times
 model = torch.compile(model)
 
-# Create train config and init ddp if available
-train_conf = TrainConf()
-train_conf.init_ddp()
 
 # Creat Trainer instance
 trainer = Trainer(model, train_conf=train_conf)

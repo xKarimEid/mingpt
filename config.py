@@ -43,10 +43,13 @@ class TrainConf:
     master_process: bool = True
 
     def init_ddp(self):
-        """Initialize DDP settings if DDP is enabled"""
+        """
+        Initialize DDP settings if DDP is detected
+        If DDP is detected gradient accumulation steps decreases
+        due to the extra GPUs. 
+        """
 
         if self.ddp:
-            print("Initializing DDP settings")
             # Sets up communication between the GPUs 
             # and initializes the environment
             init_process_group(backend='nccl')
@@ -54,8 +57,17 @@ class TrainConf:
             # Local to all gpus on same node
             self.ddp_local_rank = int(os.environ['LOCAL_RANK'])
             self.ddp_world_size = int(os.environ['WORLD_SIZE'])
-            self.device = f'cuda:{self.ddp_local_rank}'
+            self.device = f"cuda:{self.ddp_local_rank}"
             torch.cuda.set_device(self.device)
+            
+            # Update grad_accum_steps now that we have more than 1 gpu 
+            self.grad_accum_steps = int(self.total_batch_size // (self.B*self.T*self.ddp_world_size))
+            assert self.grad_accum_steps % (self.B*self.T*self.ddp_world_size) == 0
 
             # Master process is used for admin tasks
             self.master_process = self.ddp_rank == 0
+
+            # Just for dev purposes
+            if self.master_process:
+                print(f"Total desired batch size: {self.total_batch_size}")
+                print(f"Gradient accumulation steps: {self.grad_accum_steps}")
