@@ -20,7 +20,7 @@ For running on a single GPU
 python train_script.py
 ```
 
-To run on n gpus
+To run on "n" GPUs
 
 ```bash
 
