@@ -20,8 +20,8 @@ For running on a single GPU
 python train_script.py
 ```
 
-To run on "n" GPUs
+To run on "n" GPUs, replace <n> with the number of available GPUs
 
 ```bash
 
-torchrun --standalone --nproc_per_node=n train_script.py
+torchrun --standalone --nproc_per_node=<n> train_script.py
