@@ -1,6 +1,6 @@
 # Modularized GPT Training Repository
 
-This repository is a refactor of Andrej Karpathy's [minGPT](https://github.com/karpathy/minGPT). The codebase has been modularized to simplify implementation and execution, making it easier to run experiments with GPT models.
+This repository is a refactor of Andrej Karpathy's [minGPT](https://github.com/karpathy/build-nanogpt). The codebase has been modularized to simplify implementation and execution, making it easier to run experiments with smaller GPT models.
 
 ## Features
 - **Modular Code Structure**: The code is reorganized into smaller, reusable components for flexibility.
@@ -13,12 +13,15 @@ This repository is a refactor of Andrej Karpathy's [minGPT](https://github.com/k
 - [PyTorch](https://pytorch.org/get-started/locally/)
 - CUDA (for GPU support)
 
-Install the required dependencies:
+
+For running on a single GPU
 ```bash
 
-to run on single gpu:
 python train_script.py
+```
 
-to run on n gpus (replace n with )
+To run on n gpus
+
+```bash
+
 torchrun --standalone --nproc_per_node=n train_script.py
-
